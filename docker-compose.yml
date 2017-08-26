@@ -1,0 +1,23 @@
+test-nf1:
+  build: ./containers/test-nf1
+  container_name: "nf1"
+  volumes:
+    - ./nfsrc:/code
+  net: "none"
+  privileged: true
+
+test-nf2:
+  build: ./containers/test-nf2
+  container_name: "nf2"
+  volumes:
+    - ./nfsrc:/code
+  net: "none"
+  privileged: true
+
+test-nf3:
+  build: ./containers/test-nf3
+  container_name: "nf3"
+  volumes:
+    - ./nfsrc:/code
+  net: "none"
+  privileged: true

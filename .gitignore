@@ -1,1 +1,2 @@
-cli/*
+controller/*.pyc
+cli/venv/*

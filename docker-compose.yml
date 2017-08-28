@@ -21,3 +21,11 @@ test-nf3:
     - ./nfsrc:/code
   net: "none"
   privileged: true
+
+iptables:
+  build: ./containers/iptables
+  container_name: "iptables"
+  volumes:
+    - ./nfsrc:/code
+  net: "none"
+  privileged: true

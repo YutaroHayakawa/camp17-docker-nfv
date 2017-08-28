@@ -5,10 +5,10 @@ init () {
 
   sudo docker-compose up --build -d
 
-  sudo ip link add name veth_test_in_l type veth peer name downlink
-  sudo ip link set veth_test_in_l up
-  sudo ip link set downlink up
-  sudo ip link set veth_test_in_l promisc on
+#  sudo ip link add name veth_test_in_l type veth peer name downlink
+#  sudo ip link set veth_test_in_l up
+#  sudo ip link set downlink up
+#  sudo ip link set veth_test_in_l promisc on
   sudo ip link set downlink promisc on
 
   sudo ovs-vsctl --may-exist add-port vswitch0 "downlink"
@@ -28,10 +28,15 @@ init () {
   sudo ip link set nf3_down up
   sudo ip link set nf3_up up
 
-  sudo ip link add name veth_test_out_l type veth peer name uplink
-  sudo ip link set veth_test_out_l up
-  sudo ip link set uplink up
-  sudo ip link set veth_test_out_l promisc on
+  sudo ./ovs-docker add-port vswitch0 eth0 iptables down
+  sudo ./ovs-docker add-port vswitch0 eth1 iptables up
+  sudo ip link set iptables_down up
+  sudo ip link set iptables_up up
+
+#  sudo ip link add name veth_test_out_l type veth peer name uplink
+#  sudo ip link set veth_test_out_l up
+#  sudo ip link set uplink up
+#  sudo ip link set veth_test_out_l promisc on
   sudo ip link set uplink promisc on
 
   sudo ovs-vsctl --may-exist add-port vswitch0 "uplink"
@@ -54,12 +59,15 @@ destroy () {
   sudo ./ovs-docker del-port vswitch0 eth0 nf3
   sudo ./ovs-docker del-port vswitch0 eth1 nf3
 
+  sudo ./ovs-docker del-port vswitch0 eth0 iptables
+  sudo ./ovs-docker del-port vswitch0 eth1 iptables
+
   sudo docker-compose down
 
   sudo ovs-vsctl del-br vswitch0
 
-  sudo ip link del uplink
-  sudo ip link del downlink
+#  sudo ip link del uplink
+#  sudo ip link del downlink
 
   echo "Destroy done."
 }

@@ -236,15 +236,23 @@ class CampNFVRest(app_manager.RyuApp):
                                                  match, [])
         flow_mods.append(mod)
 
-        match = parser.OFPMatch(eth_type=ether_types.ETH_TYPE_IP, ip_dscp=self.mapper.get_mapping_id(vlan))
-        mod = datapath.ofproto_parser.OFPFlowMod(datapath, 0, 0, 0,
-                                                 ofproto.OFPFC_DELETE, 0, 0,
-                                                 1,
-                                                 ofproto.OFPCML_NO_BUFFER,
-                                                 ofproto.OFPP_ANY,
-                                                 OFPG_ANY, 0,
-                                                 match, [])
-        flow_mods.append(mod)
+        chain = None
+        for i, c in enumerate(self.switches[dpid].sf_chains):
+            if c['vlan'] == vlan:
+                chain = self.switches[dpid].sf_chains[i]
+                del self.switches[dpid].sf_chains[i]
+                break
+
+        if len(chain['chain'] > 1:
+            match = parser.OFPMatch(eth_type=ether_types.ETH_TYPE_IP, ip_dscp=self.mapper.get_mapping_id(vlan))
+            mod = datapath.ofproto_parser.OFPFlowMod(datapath, 0, 0, 0,
+                                                     ofproto.OFPFC_DELETE, 0, 0,
+                                                     1,
+                                                     ofproto.OFPCML_NO_BUFFER,
+                                                     ofproto.OFPP_ANY,
+                                                     OFPG_ANY, 0,
+                                                     match, [])
+            flow_mods.append(mod)
 
         for mod in flow_mods:
             print mod
@@ -252,10 +260,6 @@ class CampNFVRest(app_manager.RyuApp):
 
         self.mapper.unregister_vid(vlan)
 
-        for i, c in enumerate(self.switches[dpid].sf_chains):
-            if c['vlan'] == vlan:
-                del self.switches[dpid].sf_chains[i]
-                break
 
     def _emit_chain_flowmod(self, dpid, new_chain, dup, direction):
         datapath = self.switches[dpid].dpobj

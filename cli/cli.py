@@ -61,7 +61,7 @@ class DockerNfvCli(Cmd):
 
         dp = spl[0]
         vlan = int(spl[1])
-        nfs = spl[2:-1]
+        nfs = spl[2:]
 
         if dp not in self.datapath:
             print "No such datapath %s" % dp
@@ -79,6 +79,30 @@ class DockerNfvCli(Cmd):
 
         print "Successfully added chain"
 
+    def do_remove_chain(self, arg):
+        spl = arg.split(" ")
+        if len(spl) != 2:
+            print "Invalid input string"
+            return
+
+        dp = spl[0]
+        vlan = int(spl[1])
+
+        if dp not in self.datapath:
+            print "No such datapath %s" % dp
+            return
+
+        if vlan > pow(2, 12) or vlan < 0:
+            print "Invalid vlan id %d" % vlan
+
+        post_data = json.dumps({ "vlan": vlan })
+
+        r = requests.post("http://%s/camp-nfv/api/%s/remove-chain" % (self.controller_str, self.datapath[dp]), data=post_data)
+        if (r.status_code != 200):
+            print "Failed to remove chain (status: %d)" % r.status_code
+            return None
+
+        print "Successfully removed chain"
 
 @click.command()
 @click.option('--controller', '-c', default="localhost")

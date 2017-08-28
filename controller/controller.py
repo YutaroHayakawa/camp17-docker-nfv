@@ -32,9 +32,6 @@ import traceback
 import collections
 
 
-# Dirty hard coding for checking the number of ports
-EXPECTED_PORTNUM = 8
-
 # Logging settings
 logger = logging.getLogger(__name__)
 
@@ -113,6 +110,33 @@ class Switch(object):
         self.sf_chains = []
 
 
+class VlanDscpMapper(object):
+    def __init__(self):
+        self.id_pool = [True] * pow(2, 6)
+        self.map = {}
+
+    def register_vid(self, vid):
+        for i, is_available in enumerate(self.id_pool):
+            if is_available:
+                self.id_pool[i] = False
+                self.map[vid] = i
+                print "Registered vlan id %d mapping id is %d" % (vid, i)
+                return i
+
+        return None
+
+    def unregister_vid(self, vid):
+        idx = self.map[vid]
+        del self.map[vid]
+        self.id_pool[idx] = True
+
+    def get_mapping_id(self, vid):
+        if vid in self.map:
+            return self.map[vid]
+        else:
+            return None
+
+
 class CampNFVRest(app_manager.RyuApp):
 
     OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION]
@@ -129,6 +153,8 @@ class CampNFVRest(app_manager.RyuApp):
 
         # Initialization of chaining related members
         self.chain_info = {}
+
+        self.mapper = VlanDscpMapper()
 
     def dump_available_dp_json(self):
         return json.dumps({ "datapath": self.switches.keys() })
@@ -147,13 +173,6 @@ class CampNFVRest(app_manager.RyuApp):
         }
 
         return json.dumps(ret_dict)
-
-    # def is_valid_chain(self, chain):
-    #     for nfid in chain:
-    #         if nfid < 0 or nfid > len(chain):
-    #             return False
-
-    #     return True
 
     def create_flowmod(self, datapath, match, inst, priority, tid, update):
         ofproto = datapath.ofproto
@@ -176,21 +195,18 @@ class CampNFVRest(app_manager.RyuApp):
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
 
-        # if not self.is_valid_chain(new_chain['chain']):
-        #     raise Exception
-
         sf_chains = self.switches[dpid].sf_chains
 
         dup = False
 
+        # for ipv4, we only allow 2^6 vlan id
+        if len(sf_chains) + 1 > pow(2, 6):
+            raise Exception
+
         # We don't allow duplicate of vlan id
-        for i, c in enumerate(sf_chains):
+        for c in sf_chains:
             if new_chain['vlan'] == c['vlan']:
-                rem = sf_chains.pop(i)
-                self.remove_chain(datapath, new_chain['vlan'])
-                logger.info('removed chain %s' % str(rem))
-                dup = True
-                break
+                raise Exception
 
         sf_chains.append(new_chain)
 
@@ -202,7 +218,8 @@ class CampNFVRest(app_manager.RyuApp):
             logger.error('failed to emit flowmod for chain %s' % str(c))
             raise Exception
 
-    def remove_chain(self, datapath, vlan):
+    def remove_chain(self, dpid, vlan):
+        datapath = self.switches[dpid].dpobj
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
 
@@ -210,16 +227,20 @@ class CampNFVRest(app_manager.RyuApp):
 
         match = parser.OFPMatch(vlan_vid=vlan)
         instructions = []
-        flow_mods.append(parser.OFPFlowMod(datapath, 0, 0, 0, ofproto.OFPFC_DELETE, 0, 0, 1,
-                        ofproto.OFPCML_NO_BUFFER, ofproto.OFPP_ANY, ofproto.OFPG_ANY, 0, match, instructions))
+        mod = parser.OFPFlowMod(datapath, 0, 0, 0, ofproto.OFPFC_DELETE, 0, 0, 1,
+                ofproto.OFPCML_NO_BUFFER, ofproto.OFPP_ANY, ofproto.OFPG_ANY, 0, match, instructions)
+        flow_mods.append(mod)
 
-        match = parser.OFPMatch(ip_dscp=vlan)
+        match = parser.OFPMatch(ip_dscp=self.mapper.get_mapping_id(vlan))
         instructions = []
-        flow_mods.append(parser.OFPFlowMod(datapath, 0, 0, vlan, ofproto.OFPFC_DELETE, 0, 0, 1,
-                        ofproto.OFPCML_NO_BUFFER, ofproto.OFPP_ANY, ofproto.OFPG_ANY, 0, match, instructions))
+        mod = parser.OFPFlowMod(datapath, 0, 0, 0, ofproto.OFPFC_DELETE, 0, 0, 1,
+                ofproto.OFPCML_NO_BUFFER, ofproto.OFPP_ANY, ofproto.OFPG_ANY, 0, match, instructions)
+        flow_mods.append(mod)
 
         for mod in flow_mods:
             datapath.send_msg(mod)
+
+        self.mapper.unregister_vid(vlan)
 
     def _emit_chain_flowmod(self, dpid, new_chain, dup, direction):
         datapath = self.switches[dpid].dpobj
@@ -230,6 +251,12 @@ class CampNFVRest(app_manager.RyuApp):
         vnf_dict = sw.vnf_dict
         vlan = new_chain['vlan']
         chain = new_chain['chain']
+
+        mapping_id = self.mapper.get_mapping_id(vlan)
+        if mapping_id == None:
+            mapping_id = self.mapper.register_vid(vlan)
+            if mapping_id == None:
+                raise Exception
 
         if direction == 'up':
             entry = sw.downlink
@@ -251,43 +278,34 @@ class CampNFVRest(app_manager.RyuApp):
         flow_mods = []
 
         # Initial flow entry. Modify dscp field for remembering vlan id.
-        match = parser.OFPMatch(in_port=entry, vlan_vid=vlan|ofproto_v1_3.OFPVID_PRESENT)
+        match = parser.OFPMatch(in_port=entry, vlan_vid=vlan|ofproto_v1_3.OFPVID_PRESENT,
+                eth_type=ether_types.ETH_TYPE_IP)
         actions = [
-                parser.OFPActionPopVlan(),
-        ]
-        inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, actions), parser.OFPInstructionGotoTable(vlan)]
-        flow_mods.append(self.create_flowmod(datapath, match, inst, 1, 0, dup))
-
-        match = parser.OFPMatch(eth_type=ether_types.ETH_TYPE_IP, in_port=entry)
-        actions = [
-                parser.OFPActionSetField(ip_dscp=vlan),
+                parser.OFPActionSetField(ip_dscp=mapping_id),
                 parser.OFPActionOutput(vnf_dict[chain[0]][inport])
         ]
         inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, actions)]
-        flow_mods.append(self.create_flowmod(datapath, match, inst, 1, vlan, dup))
+        flow_mods.append(self.create_flowmod(datapath, match, inst, 1, 0, dup))
 
-        # TODO Think about more suitable name for this function...
-        def make_chaining_rules(c1, c2):
-            vnf1 = vnf_dict[c1]
-            vnf2 = vnf_dict[c2]
+        for i, c in enumerate(chain):
+            if i == len(chain) - 1:
+                break
 
-            match = parser.OFPMatch(eth_type=ether_types.ETH_TYPE_IP, ip_dscp=vlan, in_port=vnf1[outport])
+            vnf1 = vnf_dict[c]
+            vnf2 = vnf_dict[chain[i + 1]]
+
+            match = parser.OFPMatch(eth_type=ether_types.ETH_TYPE_IP, ip_dscp=mapping_id, in_port=vnf1[outport])
             actions = [
                     parser.OFPActionOutput(vnf2[inport])
             ]
             inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, actions)]
             flow_mods.append(self.create_flowmod(datapath, match, inst, 1, 0, dup))
 
-            return c2
-
-        # Connecting chains
-        last_port = reduce(make_chaining_rules, chain)
-
-        match = parser.OFPMatch(eth_type=ether_types.ETH_TYPE_IP, ip_dscp=vlan, in_port=vnf_dict[last_port][outport])
+        match = parser.OFPMatch(eth_type=ether_types.ETH_TYPE_IP, ip_dscp=mapping_id, in_port=vnf_dict[chain[-1]][outport])
         actions = [
+                parser.OFPActionPushVlan(ether_types.ETH_TYPE_8021Q),
+                parser.OFPActionSetField(vlan_vid=vlan|ofproto_v1_3.OFPVID_PRESENT),
                 parser.OFPActionSetField(ip_dscp=1),
-                parser.OFPActionPushVlan(),
-                parser.OFPActionSetField(vlan_vid=vlan),
                 parser.OFPActionOutput(exit)
         ]
         inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, actions)]
@@ -328,6 +346,8 @@ class CampNFVRest(app_manager.RyuApp):
         ports = filter(lambda s:s.port_no!=4294967294, [ stat for stat in ev.msg.body ])
 
         datapath = ev.msg.datapath
+        ofproto = datapath.ofproto
+        parser = datapath.ofproto_parser
         dpid = dpid_lib.dpid_to_str(datapath.id)
 
         try:
@@ -335,6 +355,17 @@ class CampNFVRest(app_manager.RyuApp):
         except Exception as e:
             logger.error(traceback.format_exc())
             raise Exception
+
+        # Emit arp passthrough rules
+        match = parser.OFPMatch(in_port=self.switches[dpid].uplink, eth_type=ether_types.ETH_TYPE_ARP)
+        actions = [parser.OFPActionOutput(self.switches[dpid].downlink)]
+        inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, actions)]
+        datapath.send_msg(self.create_flowmod(datapath, match, inst, 3, 0, False))
+
+        match = parser.OFPMatch(in_port=self.switches[dpid].downlink, eth_type=ether_types.ETH_TYPE_ARP)
+        actions = [parser.OFPActionOutput(self.switches[dpid].uplink)]
+        inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, actions)]
+        datapath.send_msg(self.create_flowmod(datapath, match, inst, 3, 0, False))
 
         logger.info('----------------')
         logger.info('Registered switch dpid <%s>' % dpid)
@@ -389,4 +420,16 @@ class CampNFVController(ControllerBase):
             camp_nfv.add_chain(kwargs['dpid'], new)
         except ValueError:
             print traceback.format_exc()
-            return Response(status=400)
+            return Response(status=500)
+
+    @route('camp-nfv', '/camp-nfv/api/{dpid}/remove-chain', methods=['POST'],
+            requirements={'dpid': dpid_lib.DPID_PATTERN})
+    def remove_chain(self, req, **kwargs):
+        camp_nfv = self.camp_nfv_app
+
+        try:
+            vlan = req.json['vlan']
+            camp_nfv.remove_chain(kwargs['dpid'], int(vlan))
+        except Exception as e:
+            print traceback.format_exc()
+            return Response(status=500)

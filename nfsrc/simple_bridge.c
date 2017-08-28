@@ -20,7 +20,7 @@ struct eth {
   uint8_t src[6];
   uint32_t vlan;
   uint16_t type;
-}__attribute__((packed));
+};
 
 struct ipv4 {
   uint8_t verihl;
@@ -35,7 +35,7 @@ struct ipv4 {
   uint16_t check;
   uint32_t src;
   uint32_t dst;
-}__attribute__((packed));
+};
 
 void die(const char *msg) {
   perror(msg);
@@ -121,6 +121,8 @@ int main(void) {
     if (err < 0) {
       die("poll");
     }
+
+    printf("Got packet!\n");
 
     if (fds[0].revents & POLLIN) {
       rs = recv(sock1, buf, BUF_SIZE, 0);

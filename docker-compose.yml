@@ -29,3 +29,4 @@ iptables:
     - ./nfsrc:/code
   net: "none"
   privileged: true
+  command: /sbin/init

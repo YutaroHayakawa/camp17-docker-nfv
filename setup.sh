@@ -46,6 +46,9 @@ init () {
   sudo docker-compose ps
   sudo ovs-vsctl show
 
+  # Setting for ip tables container
+  sudo sh -c "echo 1 > /proc/sys/net/bridge/bridge-nf-filter-vlan-tagged"
+
   echo "Init done. Please execute something on container."
 }
 
@@ -68,6 +71,9 @@ destroy () {
 
 #  sudo ip link del uplink
 #  sudo ip link del downlink
+
+  # Setting for ip tables container
+  sudo sh -c "echo 0 > /proc/sys/net/bridge/bridge-nf-filter-vlan-tagged"
 
   echo "Destroy done."
 }

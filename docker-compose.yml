@@ -27,6 +27,7 @@ iptables:
   container_name: "iptables"
   volumes:
     - ./nfsrc:/code
+    - ./containers/iptables/scripts:/scripts
   net: "none"
   privileged: true
-  command: /sbin/init
+  command: /scripts/run.sh

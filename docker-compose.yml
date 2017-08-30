@@ -31,5 +31,6 @@ iptables:
     - ./containers/iptables/scripts:/scripts
   net: "none"
   privileged: true
-  entrypoint: /sbin/init
-  command: /scripts/run.sh
+  command:
+    - /sbin/init
+    - /scripts/run.sh

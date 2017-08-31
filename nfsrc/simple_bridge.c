@@ -122,7 +122,7 @@ int main(void) {
       die("poll");
     }
 
-    printf("Got packet!\n");
+    // printf("Got packet!\n");
 
     if (fds[0].revents & POLLIN) {
       rs = recv(sock1, buf, BUF_SIZE, 0);
@@ -133,7 +133,7 @@ int main(void) {
       e = (struct eth*)buf;
       ip = (struct ipv4 *)(e + 1);
 
-      printf("Got packet! DSCP: %x\n", ip->dscp);
+      // printf("Got packet! DSCP: %x\n", ip->dscp);
 
       ss = send(sock2, buf, rs, MSG_DONTROUTE);
       if (ss < 0) {
@@ -149,7 +149,7 @@ int main(void) {
 
       e = (struct eth*)buf;
       ip = (struct ipv4 *)(e + 1);
-      printf("Got packet! DSCP: %x\n", ip->dscp);
+      // printf("Got packet! DSCP: %x\n", ip->dscp);
 
       ss = send(sock1, buf, rs, MSG_DONTROUTE);
       if (ss < 0) {

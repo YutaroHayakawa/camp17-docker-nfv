@@ -19,7 +19,7 @@ pkts.append(packet((Ether()/Dot1Q(vlan=3)/IP()/UDP()), "case2"))
 
 for p in pkts:
     print "Emit packet case=%s" % (p.label)
-    sendp(p.pkt, iface="veth_test_in_l")
+    sendp(p.pkt, iface="test_in_l")
     time.sleep(1)
 
 #for p in pkts:

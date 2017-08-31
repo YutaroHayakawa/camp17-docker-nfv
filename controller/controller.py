@@ -344,13 +344,6 @@ class CampNFVRest(app_manager.RyuApp):
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
 
-        # Emit table miss flowmod
-        match = parser.OFPMatch()
-        actions = [parser.OFPActionOutput(ofproto.OFPP_CONTROLLER,
-                   ofproto.OFPCML_NO_BUFFER)]
-        inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, actions)]
-        datapath.send_msg(self.create_flowmod(datapath, match, inst, 0, 0, False))
-
         # Send port stat request
         req = parser.OFPPortDescStatsRequest(datapath, 0)
         datapath.send_msg(req)
@@ -371,16 +364,56 @@ class CampNFVRest(app_manager.RyuApp):
             logger.error(traceback.format_exc())
             raise Exception
 
+        # Emit table miss flowmod (all passthrough)
+        # match = parser.OFPMatch(in_port=self.switches[dpid].uplink)
+        # actions = [parser.OFPActionOutput(self.switches[dpid].downlink)]
+        # inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, actions)]
+        # datapath.send_msg(self.create_flowmod(datapath, match, inst, 0, 0, False))
+
+        # match = parser.OFPMatch(in_port=self.switches[dpid].downlink)
+        # actions = [parser.OFPActionOutput(self.switches[dpid].uplink)]
+        # inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, actions)]
+        # datapath.send_msg(self.create_flowmod(datapath, match, inst, 0, 0, False))
+
+        # Emit table miss flowmod (all drop)
+        match = parser.OFPMatch()
+        actions = []
+        inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, actions)]
+        datapath.send_msg(self.create_flowmod(datapath, match, inst, 0, 0, False))
+
         # Emit arp passthrough rules
-        match = parser.OFPMatch(in_port=self.switches[dpid].uplink, eth_type=ether_types.ETH_TYPE_ARP)
+        match = parser.OFPMatch(in_port=self.switches[dpid].uplink, eth_type=ether_types.ETH_TYPE_ARP, vlan_vid=(0x1000, 0x1000))
         actions = [parser.OFPActionOutput(self.switches[dpid].downlink)]
         inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, actions)]
-        datapath.send_msg(self.create_flowmod(datapath, match, inst, 3, 0, False))
+        datapath.send_msg(self.create_flowmod(datapath, match, inst, 100, 0, False))
 
-        match = parser.OFPMatch(in_port=self.switches[dpid].downlink, eth_type=ether_types.ETH_TYPE_ARP)
+        match = parser.OFPMatch(in_port=self.switches[dpid].downlink, eth_type=ether_types.ETH_TYPE_ARP, vlan_vid=(0x1000, 0x1000))
         actions = [parser.OFPActionOutput(self.switches[dpid].uplink)]
         inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, actions)]
-        datapath.send_msg(self.create_flowmod(datapath, match, inst, 3, 0, False))
+        datapath.send_msg(self.create_flowmod(datapath, match, inst, 100, 0, False))
+
+        # Emit ipv6 passthrough rules
+        match = parser.OFPMatch(in_port=self.switches[dpid].uplink, eth_type=ether_types.ETH_TYPE_IPV6, vlan_vid=(0x1000, 0x1000))
+        actions = [parser.OFPActionOutput(self.switches[dpid].downlink)]
+        inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, actions)]
+        datapath.send_msg(self.create_flowmod(datapath, match, inst, 100, 0, False))
+
+        match = parser.OFPMatch(in_port=self.switches[dpid].downlink, eth_type=ether_types.ETH_TYPE_IPV6, vlan_vid=(0x1000, 0x1000))
+        actions = [parser.OFPActionOutput(self.switches[dpid].uplink)]
+        inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, actions)]
+        datapath.send_msg(self.create_flowmod(datapath, match, inst, 100, 0, False))
+
+        # Patch: Block all arp from nf including tagged packets
+        match = parser.OFPMatch(eth_type=ether_types.ETH_TYPE_ARP, vlan_vid=(0x1000, 0x1000))
+        actions = []
+        inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, actions)]
+        datapath.send_msg(self.create_flowmod(datapath, match, inst, 50, 0, False))
+
+        # Patch: Block all arp from nf
+        match = parser.OFPMatch(eth_type=ether_types.ETH_TYPE_ARP)
+        actions = []
+        inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, actions)]
+        datapath.send_msg(self.create_flowmod(datapath, match, inst, 51, 0, False))
 
         logger.info('----------------')
         logger.info('Registered switch dpid <%s>' % dpid)
@@ -392,8 +425,8 @@ class CampNFVRest(app_manager.RyuApp):
     @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
     def packet_in_handler(self, ev):
         pkt = packet.Packet(ev.msg.data)
-        pprint.pprint('packet in: %s' % str(ev.msg))
         pprint.pprint('packet in: %s' % str(pkt))
+        pprint.pprint('packet in: %s' % str(ev.msg))
 
 
 class CampNFVController(ControllerBase):

@@ -49,6 +49,9 @@ init () {
 
   sudo ovs-vsctl set-controller vswitch0 tcp:127.0.0.1
 
+  sudo ovs-vsctl set-fail-mode vswitch0 secure
+  sudo ovs-vsctl set controller vswitch0 connection-mode=out-of-band
+
   sudo docker-compose ps
   sudo ovs-vsctl show
 

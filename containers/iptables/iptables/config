@@ -21,6 +21,8 @@
 
 # (7) individual setting
 ## drop TCP connection from the outside of camp-net
--A FORWARD -p tcp -m state --state NEW --in-interface eth1 -j DROP
+-A FORWARD -p tcp -m state --state NEW -m physdev  --physdev-in  eth1 -j DROP
 
 COMMIT
+
+

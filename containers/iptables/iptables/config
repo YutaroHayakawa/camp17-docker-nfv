@@ -1,0 +1,26 @@
+# (1) policy setting
+*filter
+:INPUT   DROP   [0:0]
+:FORWARD ACCEPT [0:0]
+:OUTPUT  ACCEPT [0:0]
+
+# (2) permit loopback
+-A INPUT -i lo -j ACCEPT
+
+# (3) drop vacant packet connection
+-A INPUT -p tcp --tcp-flags ALL NONE -j DROP
+
+# (4) drop SYNflood-like? attack
+-A INPUT -p tcp ! --syn -m state --state NEW -j DROP
+
+# (5) drop stealth scan
+-A INPUT -p tcp --tcp-flags ALL ALL -j DROP
+
+# (6) capture logs
+-A FORWARD -j LOG --log-level info --log-prefix "[iptables] "
+
+# (7) individual setting
+## drop TCP connection from the outside of camp-net
+-A FORWARD -p tcp -m state --state NEW --in-interface eth1 -j DROP
+
+COMMIT

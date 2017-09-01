@@ -58,6 +58,11 @@ init () {
   # Setting for ip tables container
   sudo sh -c "echo 1 > /proc/sys/net/bridge/bridge-nf-filter-vlan-tagged"
 
+  # Setting iptables in Docker container
+  sudo docker exec -ti iptables sh -c "scripts/run.sh"
+  sudo docker exec -ti iptables sh -c "iptables-restore /etc/iptables/config"
+  sudo docker exec -ti iptables sh -c "iptables -L"
+
   echo "Init done. Please execute something on container."
 }
 

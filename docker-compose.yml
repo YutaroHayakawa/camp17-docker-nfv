@@ -29,7 +29,8 @@ iptables:
     - ./nfsrc:/code
     - ./containers/iptables/iptables:/etc/iptables
     - ./containers/iptables/scripts:/scripts
-    - ./containers/iptables/log:/var/log/
+    - ./containers/iptables/log:/var/log/iptables
+    - ./containers/iptables/rsyslog:/etc/rsyslog.d
   net: "none"
   privileged: true
   command:

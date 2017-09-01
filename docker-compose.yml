@@ -34,3 +34,13 @@ iptables:
   command:
     - /sbin/init
     - /scripts/run.sh
+
+snort:
+  build: ./containers/snort
+  container_name: "snort"
+  volumes:
+    - ./containers/snort/log:/var/log/snort
+  net: "none"
+  privileged: true
+  command:
+    - /sbin/init

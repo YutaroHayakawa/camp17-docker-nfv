@@ -36,10 +36,11 @@ init () {
   sudo ip link set iptables_down up
   sudo ip link set iptables_up up
 
-  # sudo ip link add name test_out_l type veth peer name uplink
-  # sudo ip link set test_out_l up
-  # sudo ip link set uplink up
-  # sudo ip link set test_out_l promisc on
+  sudo ./ovs-docker add-port vswitch0 eth0 snort down
+  sudo ./ovs-docker add-port vswitch0 eth1 snort up
+  sudo ip link set snort_down up
+  sudo ip link set snort_up up
+
   sudo ip link set eno2 down
   sudo ip link set eno2 name uplink
   sudo ip link set uplink up
@@ -78,6 +79,9 @@ destroy () {
 
   sudo ./ovs-docker del-port vswitch0 eth0 iptables
   sudo ./ovs-docker del-port vswitch0 eth1 iptables
+
+  sudo ./ovs-docker del-port vswitch0 eth0 snort
+  sudo ./ovs-docker del-port vswitch0 eth1 snort
 
   sudo docker-compose down
 

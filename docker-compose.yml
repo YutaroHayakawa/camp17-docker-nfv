@@ -29,13 +29,14 @@ iptables:
     - ./nfsrc:/code
     - ./containers/iptables/iptables:/etc/iptables
     - ./containers/iptables/scripts:/scripts
-    - ./containers/iptables/log:/var/log/iptables
     - ./containers/iptables/rsyslog:/etc/rsyslog.d
   net: "none"
+  log_driver: "syslog"
   privileged: true
   command:
     - /sbin/init
     - /scripts/run.sh
+  cpuset: "0"
 
 snort:
   build: ./containers/snort
@@ -46,3 +47,4 @@ snort:
   privileged: true
   command:
     - /sbin/init
+  cpuset: "1"

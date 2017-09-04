@@ -17,9 +17,11 @@
 -A INPUT -p tcp --tcp-flags ALL ALL -j DROP
 
 # (6) capture logs
--A FORWARD -j LOG --log-level info --log-prefix "[iptables] "
+-A FORWARD -j LOG --log-level debug --log-prefix "[iptables] "
 
 # (7) individual setting
+## drop icmp
+-A FORWARD -p icmp -j DROP
 ## drop TCP connection from the outside of camp-net
 -A FORWARD -p tcp -m state --state NEW -m physdev  --physdev-in  eth1 -j DROP
 
